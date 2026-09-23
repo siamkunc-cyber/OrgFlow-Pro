@@ -1,144 +1,67 @@
-# OrgFlow Pro — GitHub Pages + Supabase
+# OrgFlow Pro V2 — GitHub Pages + Supabase
 
-เวอร์ชันนี้เปลี่ยนจาก **LocalStorage / Excel เป็นที่จัดเก็บหลัก** มาเป็น:
+ระบบสร้างและจัดการผังองค์กรบนเว็บ โดย GitHub Pages เป็น Frontend และ Supabase PostgreSQL เป็นฐานข้อมูลหลัก
 
-- Frontend: GitHub Pages (HTML/CSS/JavaScript)
-- Database: Supabase PostgreSQL
-- Authentication: Supabase Auth (Email + Password)
-- Security: Supabase Row Level Security (RLS)
-- Excel/CSV: ใช้เป็น **Import / Export เท่านั้น** ไม่ใช่ฐานข้อมูล
+## Architecture
 
-## 1. สร้าง Supabase Project
+```text
+Browser
+  ↓
+GitHub Pages / index.html
+  ↓
+OrgFlow JavaScript
+  ├─ Demo/Local mode (ไม่ต้องมีฐานข้อมูล)
+  └─ Supabase Auth → PostgreSQL
+                         └─ org_employees
+```
 
-1. เข้า Supabase Dashboard: https://supabase.com/dashboard
-2. สร้าง Project ใหม่
-3. เปิด SQL Editor
-4. นำไฟล์ `supabase/schema.sql` ไปวางและ Run
-5. ไปที่ Authentication > Users
-6. สร้างผู้ใช้งาน เช่น `admin@company.com` พร้อม password
+Excel/CSV ใช้สำหรับ Import/Export เท่านั้น ไม่ใช่ฐานข้อมูลหลัก
 
-> ห้ามใช้ `service_role` key ในหน้าเว็บหรือ commit ลง GitHub
+## 1. Deploy to GitHub Pages
 
-## 2. ใส่ Supabase URL และ Publishable/Anon Key
+1. Upload/Push ไฟล์ทั้งหมดในโฟลเดอร์นี้เข้า repository `OrgFlow-Pro` ที่ branch `main`
+2. ไปที่ GitHub → Settings → Pages
+3. ตั้ง **Build and deployment → Source = GitHub Actions**
+4. ไปที่ Actions และรอ workflow `Deploy OrgFlow Pro to GitHub Pages` สำเร็จ
+5. เปิด `https://<username>.github.io/OrgFlow-Pro/`
 
-แก้ไฟล์:
+> ใช้ path แบบ relative ทั้งหมด จึงทำงานกับ Project Pages ที่มี `/OrgFlow-Pro/` ได้
 
-`js/config.js`
+## 2. Configure Supabase
 
-ตัวอย่าง:
+เปิด `js/config.js` และใส่ค่า:
 
 ```js
 window.ORG_FLOW_CONFIG = {
-  SUPABASE_URL: "https://xxxxxxxx.supabase.co",
-  SUPABASE_PUBLISHABLE_KEY: "sb_publishable_xxxxxxxxx"
+  SUPABASE_URL: 'https://YOUR_PROJECT.supabase.co',
+  SUPABASE_PUBLISHABLE_KEY: 'YOUR_PUBLISHABLE_OR_ANON_KEY',
+  AUTO_LOAD_CLOUD: true
 };
 ```
 
-สามารถใช้ publishable key / anon key สำหรับ browser ได้ แต่ต้องเปิด RLS และกำหนด policy ให้ถูกต้อง
+ห้ามใส่ `service_role` หรือ secret key ใน GitHub/frontend
 
-## 3. ทดสอบบนเครื่อง
+## 3. Create database
 
-เปิดผ่าน local web server เช่น VS Code Live Server
+เปิด Supabase → SQL Editor แล้วรัน `supabase/schema.sql`
 
-ห้ามเปิดด้วย `file://` หากต้องการทดสอบ Auth/Cloud แบบจริงจัง
+## 4. Create login user
 
-## 4. Deploy GitHub Pages
+Supabase → Authentication → Users → Add user
 
-สร้าง repository เช่น:
+ตัวอย่าง:
 
-`orgflow-pro`
+`admin@company.co.th`
 
-แล้ว push ไฟล์ทั้งหมดขึ้น GitHub
+## 5. How storage works
 
-จากนั้น:
+- ยังไม่ตั้งค่า Supabase: โปรแกรมเปิด Demo/Local mode และเก็บการแก้ไขใน browser LocalStorage
+- ตั้งค่า Supabase แต่ยังไม่ Login: โปรแกรมยังเปิดดู Demo ได้ แต่ยังไม่เขียนข้อมูลขึ้น cloud
+- Login สำเร็จ: โปรแกรมโหลดข้อมูลจาก `org_employees` และ Add/Edit/Delete/Import/Clear จะ sync ไป Supabase
+- Excel/CSV: Import/Export เท่านั้น
 
-`Repository > Settings > Pages`
+## 6. Security
 
-เลือก:
+RLS ใน `supabase/schema.sql` อนุญาตเฉพาะ `authenticated` users ให้ CRUD ตาราง `org_employees`
 
-- Source: GitHub Actions
-
-Workflow ใน:
-
-`.github/workflows/pages.yml`
-
-จะ deploy ทุกครั้งที่ push `main`
-
-URL จะอยู่รูปแบบ:
-
-`https://YOUR-USERNAME.github.io/orgflow-pro/`
-
-## 5. สิ่งที่เปลี่ยนจากรุ่น Offline
-
-### เดิม
-
-`Excel -> JavaScript -> LocalStorage`
-
-### รุ่นใหม่
-
-`Browser -> Supabase Auth -> Supabase PostgreSQL`
-
-ข้อมูลพนักงานจะไม่ถูกเก็บเป็น Excel หรือ LocalStorage เป็นฐานข้อมูลหลัก
-
-## 6. โครงสร้างข้อมูล
-
-ตารางหลัก:
-
-`public.org_employees`
-
-ฟิลด์:
-
-- id
-- name
-- position
-- department
-- reports_to
-- role_level
-- email
-- phone
-- avatar_url
-- created_at
-- updated_at
-
-## 7. ความปลอดภัย
-
-ตาราง `org_employees` เปิด RLS และอนุญาตเฉพาะ `authenticated` users
-
-ห้ามสร้าง policy แบบ:
-
-`to anon using (true)`
-
-สำหรับข้อมูลพนักงานจริง
-
-ห้ามใส่:
-
-`service_role`
-
-หรือ Secret Key ใน `js/config.js`
-
-## 8. Excel ยังอยู่ไหม?
-
-ยังอยู่เพื่อรองรับการย้ายข้อมูล:
-
-- Import Excel / CSV -> บันทึกเข้า Supabase
-- Export Excel -> ส่งออกข้อมูลจากระบบ
-- Template Excel -> ใช้เตรียมข้อมูลก่อน Import
-
-แต่ Excel **ไม่ใช่ storage หลักอีกต่อไป**
-
-## 9. แผนต่อยอดที่แนะนำ
-
-Phase 2:
-
-- Multi-company / Tenant
-- User roles: Owner / HR Admin / Manager / Viewer
-- Audit Log
-- Realtime update
-- Department master
-- Position master
-- Employee master
-- Profile photo upload ไป Supabase Storage
-- Version / History ของ Organization Chart
-- แชร์ลิงก์เฉพาะสิทธิ์
-- Custom domain เช่น `org.company.co.th`
-
+สำหรับ production แบบหลายบริษัท ควรเพิ่ม `company_id` และ policies แบบ tenant-scoped ก่อนนำข้อมูลพนักงานจริงขึ้นระบบ

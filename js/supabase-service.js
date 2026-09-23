@@ -1,143 +1,115 @@
 /**
- * OrgFlow Cloud Data Service
- * Storage: Supabase Postgres + Supabase Auth
- *
- * The browser uses the public/publishable key only.
- * Access to employee rows is protected by Supabase Auth + RLS.
+ * OrgFlow Pro V2 - Supabase data/auth service
+ * The UI remains usable in Demo/Local mode when Supabase is not configured.
  */
 (function () {
-  const cfg = window.ORG_FLOW_CONFIG || {};
-  const ready =
-    cfg.SUPABASE_URL &&
-    cfg.SUPABASE_PUBLISHABLE_KEY &&
-    !cfg.SUPABASE_URL.includes("YOUR-PROJECT") &&
-    !cfg.SUPABASE_PUBLISHABLE_KEY.includes("YOUR-PUBLISHABLE");
-
-  window.OrgFlowCloud = {
-    configured: !!ready,
-    client: null,
-    user: null,
-
-    init() {
-      if (!this.configured) return false;
-      if (!window.supabase || typeof window.supabase.createClient !== "function") {
-        console.error("Supabase JS client is not loaded.");
-        return false;
-      }
-      this.client = window.supabase.createClient(
-        cfg.SUPABASE_URL,
-        cfg.SUPABASE_PUBLISHABLE_KEY,
-        {
-          auth: {
-            autoRefreshToken: true,
-            persistSession: true,
-            detectSessionInUrl: true
-          }
-        }
+  class OrgFlowSupabaseService {
+    constructor() {
+      this.client = null;
+      this.session = null;
+      this.config = window.ORG_FLOW_CONFIG || {};
+      this.configured = Boolean(
+        this.config.SUPABASE_URL &&
+        this.config.SUPABASE_PUBLISHABLE_KEY &&
+        window.supabase &&
+        typeof window.supabase.createClient === 'function'
       );
-      return true;
-    },
 
-    async getSession() {
-      if (!this.client) return null;
-      const { data, error } = await this.client.auth.getSession();
-      if (error) throw error;
-      this.user = data.session ? data.session.user : null;
-      return data.session;
-    },
+      if (this.configured) {
+        this.client = window.supabase.createClient(
+          this.config.SUPABASE_URL,
+          this.config.SUPABASE_PUBLISHABLE_KEY,
+          { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }
+        );
+        this.client.auth.getSession().then(({ data }) => { this.session = data.session || null; });
+        this.client.auth.onAuthStateChange((_event, session) => {
+          this.session = session || null;
+          window.dispatchEvent(new CustomEvent('orgflow-auth-changed', { detail: { session: this.session } }));
+        });
+      }
+    }
 
-    onAuthStateChange(callback) {
-      if (!this.client) return { data: { subscription: { unsubscribe() {} } } };
-      return this.client.auth.onAuthStateChange((event, session) => {
-        this.user = session ? session.user : null;
-        callback(event, session);
-      });
-    },
+    isConfigured() { return this.configured; }
+    isAuthenticated() { return Boolean(this.session); }
+    getUser() { return this.session ? this.session.user : null; }
 
     async signIn(email, password) {
-      if (!this.client) throw new Error("ยังไม่ได้ตั้งค่า Supabase");
+      if (!this.configured) throw new Error('ยังไม่ได้ตั้งค่า Supabase ใน js/config.js');
       const { data, error } = await this.client.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      this.user = data.user;
+      this.session = data.session;
       return data;
-    },
+    }
 
     async signOut() {
-      if (!this.client) return;
+      if (!this.configured) return;
       const { error } = await this.client.auth.signOut();
       if (error) throw error;
-      this.user = null;
-    },
+      this.session = null;
+    }
 
-    toDb(row) {
-      return {
-        id: String(row.id || "").trim(),
-        name: row.name || "",
-        position: row.position || "",
-        department: row.department || "General",
-        reports_to: row.reportsTo || null,
-        role_level: row.roleLevel || "Staff",
-        email: row.email || null,
-        phone: row.phone || null,
-        avatar_url: row.avatarUrl || null
-      };
-    },
-
-    fromDb(row) {
-      return {
-        id: row.id,
-        name: row.name || "",
-        position: row.position || "",
-        department: row.department || "General",
-        reportsTo: row.reports_to || "",
-        roleLevel: row.role_level || "Staff",
-        email: row.email || "",
-        phone: row.phone || "",
-        avatarUrl: row.avatar_url || ""
-      };
-    },
-
-    async loadEmployees() {
-      if (!this.client) throw new Error("Supabase ยังไม่ได้ตั้งค่า");
+    async listEmployees() {
+      if (!this.configured || !this.isAuthenticated()) return null;
       const { data, error } = await this.client
-        .from("org_employees")
-        .select("*")
-        .order("id", { ascending: true });
+        .from('org_employees')
+        .select('*')
+        .order('id', { ascending: true });
       if (error) throw error;
-      return (data || []).map(r => this.fromDb(r));
-    },
+      return (data || []).map(this.fromRow);
+    }
 
-    async upsertEmployees(rows) {
-      if (!this.client) throw new Error("Supabase ยังไม่ได้ตั้งค่า");
-      if (!rows || rows.length === 0) return;
-      const payload = rows.map(r => this.toDb(r));
-      const { error } = await this.client
-        .from("org_employees")
-        .upsert(payload, { onConflict: "id" });
+    async upsertEmployees(items) {
+      if (!this.configured || !this.isAuthenticated()) return false;
+      if (!Array.isArray(items)) return false;
+      const rows = items.map(this.toRow);
+      const { error } = await this.client.from('org_employees').upsert(rows, { onConflict: 'id' });
       if (error) throw error;
-    },
-
-    async replaceEmployees(rows) {
-      if (!this.client) throw new Error("Supabase ยังไม่ได้ตั้งค่า");
-      const { error: deleteError } = await this.client
-        .from("org_employees")
-        .delete()
-        .not("id", "is", null);
-      if (deleteError) throw deleteError;
-      if (rows && rows.length) await this.upsertEmployees(rows);
-    },
+      return true;
+    }
 
     async deleteEmployee(id) {
-      if (!this.client) throw new Error("Supabase ยังไม่ได้ตั้งค่า");
-      const { error } = await this.client
-        .from("org_employees")
-        .delete()
-        .eq("id", id);
+      if (!this.configured || !this.isAuthenticated()) return false;
+      const { error } = await this.client.from('org_employees').delete().eq('id', id);
       if (error) throw error;
-    },
-
-    async clearEmployees() {
-      return this.replaceEmployees([]);
+      return true;
     }
-  };
+
+    async replaceEmployees(items) {
+      if (!this.configured || !this.isAuthenticated()) return false;
+      const { error: deleteError } = await this.client.from('org_employees').delete().neq('id', '__ORG_FLOW_NEVER_MATCH__');
+      if (deleteError) throw deleteError;
+      if (items.length) await this.upsertEmployees(items);
+      return true;
+    }
+
+    toRow(item) {
+      return {
+        id: item.id,
+        name: item.name,
+        position: item.position,
+        department: item.department || 'General',
+        reports_to: item.reportsTo || null,
+        role_level: item.roleLevel || 'Staff',
+        email: item.email || null,
+        phone: item.phone || null,
+        avatar_url: item.avatarUrl || null
+      };
+    }
+
+    fromRow(row) {
+      return {
+        id: row.id,
+        name: row.name,
+        position: row.position,
+        department: row.department || 'General',
+        reportsTo: row.reports_to || '',
+        roleLevel: row.role_level || 'Staff',
+        email: row.email || '',
+        phone: row.phone || '',
+        avatarUrl: row.avatar_url || ''
+      };
+    }
+  }
+
+  window.OrgFlowSupabaseService = new OrgFlowSupabaseService();
 })();

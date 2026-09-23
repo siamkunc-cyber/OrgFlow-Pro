@@ -12,16 +12,14 @@ class OrgAppController {
     this.currentView = 'chart'; // 'chart' | 'table'
     this.uploadedFile = null;
     this.STORAGE_KEY = 'orgflow_chart_data_v1';
-    this.cloudReady = false;
-    this.authSubscription = null;
   }
 
   /**
    * Initialize Application
    */
   async init() {
-    // 1. Initialize cloud storage
-    this.cloudReady = !!(window.OrgFlowCloud && window.OrgFlowCloud.init());
+    // 1. Load cloud data when configured + authenticated; otherwise use local/demo data
+    await this.loadInitialData();
 
     // 2. Setup Native D3 Chart Renderer
     this.renderer = new OrgChartRenderer({
@@ -35,156 +33,59 @@ class OrgAppController {
     // 3. Bind UI Events
     this.bindEvents();
 
-    // 4. Cloud authentication gate
-    if (this.cloudReady) {
-      this.setupAuthGate();
-      const session = await window.OrgFlowCloud.getSession();
-      if (!session) {
-        this.data = [];
-        this.updateStats();
-        this.renderDeptFilters();
-        this.renderCurrentView();
-        this.showAuthGate();
-        return;
-      }
-      await this.loadAuthenticatedData();
-    } else {
-      this.data = [];
-      this.refreshUI();
-      this.showAuthGate(true);
-    }
-
-    console.log('OrgFlow initialized successfully with', this.data.length, 'members.');
-  }
-
-  async loadAuthenticatedData() {
-    await this.loadInitialData();
-    this.refreshUI();
-    this.hideAuthGate();
-  }
-
-  refreshUI() {
+    // 4. Update UI Components
     this.updateStats();
     this.renderDeptFilters();
     this.populateManagerDropdown();
+
+    // 5. Auth UI + initial render
+    this.setupAuthUI();
     this.renderCurrentView();
-  }
+    this.updateCloudStatus();
 
-  setupAuthGate() {
-    if (this.authSubscription) return;
-
-    this.authSubscription = window.OrgFlowCloud.onAuthStateChange(async (event, session) => {
-      if (session) {
-        try {
-          await this.loadAuthenticatedData();
-        } catch (e) {
-          console.error('Auth session load failed:', e);
+    window.addEventListener('orgflow-auth-changed', async () => {
+      try {
+        if (window.OrgFlowSupabaseService && window.OrgFlowSupabaseService.isAuthenticated()) {
+          const cloud = await window.OrgFlowSupabaseService.listEmployees();
+          if (Array.isArray(cloud) && cloud.length) this.data = cloud;
+        } else {
+          this.loadLocalOrDemoData();
         }
-      } else {
-        this.data = [];
-        this.activeDeptFilter = 'ALL';
-        this.refreshUI();
-        this.showAuthGate();
+        this.updateStats();
+        this.renderDeptFilters();
+        this.populateManagerDropdown();
+        this.renderCurrentView();
+        this.updateCloudStatus();
+        this.refreshAuthButton();
+      } catch (err) {
+        console.error('Auth state refresh failed:', err);
+        this.updateCloudStatus(err.message);
       }
     });
 
-    const form = document.getElementById('cloud-login-form');
-    if (form && !form.dataset.bound) {
-      form.dataset.bound = '1';
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('cloud-login-email').value.trim();
-        const password = document.getElementById('cloud-login-password').value;
-        const btn = document.getElementById('cloud-login-submit');
-
-        if (!email || !password) return;
-
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังเข้าสู่ระบบ...';
-        try {
-          await window.OrgFlowCloud.signIn(email, password);
-          form.reset();
-        } catch (err) {
-          Swal.fire({
-            icon: 'error',
-            title: 'เข้าสู่ระบบไม่สำเร็จ',
-            text: err.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
-          });
-        } finally {
-          btn.disabled = false;
-          btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ';
-        }
-      });
-    }
-
-    const setupBtn = document.getElementById('btn-auth-setup');
-    if (setupBtn && !setupBtn.dataset.bound) {
-      setupBtn.dataset.bound = '1';
-      setupBtn.addEventListener('click', () => {
-        window.open('https://supabase.com/dashboard', '_blank', 'noopener');
-      });
-    }
-  }
-
-  showAuthGate(configMissing = false) {
-    const gate = document.getElementById('cloud-auth-gate');
-    const title = document.getElementById('auth-gate-title');
-    const subtitle = document.getElementById('auth-gate-subtitle');
-    const form = document.getElementById('cloud-login-form');
-    const setup = document.getElementById('btn-auth-setup');
-    if (configMissing) {
-      if (title) title.textContent = 'ตั้งค่า Cloud Database ก่อนใช้งาน';
-      if (subtitle) subtitle.textContent = 'กรุณาใส่ Supabase URL และ Publishable/Anon Key ใน js/config.js';
-      if (form) form.classList.add('hidden');
-      if (setup) setup.classList.remove('hidden');
-    } else {
-      if (title) title.textContent = 'เข้าสู่ระบบ OrgFlow Cloud';
-      if (subtitle) subtitle.textContent = 'ข้อมูลผังองค์กรถูกเก็บใน Supabase Postgres ไม่ใช่ Excel หรือ LocalStorage';
-      if (form) form.classList.remove('hidden');
-      if (setup) setup.classList.add('hidden');
-    }
-    if (gate) gate.classList.remove('hidden');
-    document.body.classList.add('auth-locked');
-  }
-
-  hideAuthGate() {
-    const gate = document.getElementById('cloud-auth-gate');
-    if (gate) gate.classList.add('hidden');
-    document.body.classList.remove('auth-locked');
-    const emailLabel = document.getElementById('auth-user-email');
-    if (emailLabel && window.OrgFlowCloud && window.OrgFlowCloud.user) {
-      emailLabel.textContent = window.OrgFlowCloud.user.email || '';
-    }
+    console.log('OrgFlow V2 initialized successfully with', this.data.length, 'members.');
   }
 
   /**
    * Load data from localStorage or initial sample dataset
    */
   async loadInitialData() {
-    try {
-      const rows = await window.OrgFlowCloud.loadEmployees();
-      if (Array.isArray(rows) && rows.length > 0) {
-        this.data = rows;
-        return;
-      }
-
-      // Empty cloud database: keep the UI empty until the user explicitly
-      // chooses "โหลดตัวอย่างตั้งต้น" or imports data.
-      this.data = [];
-    } catch (e) {
-      console.error('Cloud data load failed:', e);
-      this.data = [];
-      if (typeof Swal !== 'undefined') {
-        await Swal.fire({
-          icon: 'error',
-          title: 'เชื่อมต่อฐานข้อมูลไม่สำเร็จ',
-          text: e.message || 'ตรวจสอบ Supabase URL, key, Auth และ RLS'
-        });
+    const svc = window.OrgFlowSupabaseService;
+    if (svc && svc.isConfigured() && svc.isAuthenticated() && (window.ORG_FLOW_CONFIG?.AUTO_LOAD_CLOUD !== false)) {
+      try {
+        const cloud = await svc.listEmployees();
+        if (Array.isArray(cloud) && cloud.length > 0) {
+          this.data = cloud;
+          return;
+        }
+      } catch (e) {
+        console.warn('Cloud load failed; falling back to local/demo:', e);
       }
     }
+    this.loadLocalOrDemoData();
   }
 
-  loadInitialDataLocal() {
+  loadLocalOrDemoData() {
     try {
       const saved = localStorage.getItem(this.STORAGE_KEY);
       if (saved) {
@@ -197,47 +98,130 @@ class OrgAppController {
     } catch (e) {
       console.warn('Could not parse localStorage data', e);
     }
-
     if (window.SAMPLE_ORG_DATA && Array.isArray(window.SAMPLE_ORG_DATA)) {
       this.data = JSON.parse(JSON.stringify(window.SAMPLE_ORG_DATA));
+    } else if (typeof SAMPLE_ORG_DATA !== 'undefined' && Array.isArray(SAMPLE_ORG_DATA)) {
+      this.data = JSON.parse(JSON.stringify(SAMPLE_ORG_DATA));
     } else {
       this.data = [];
     }
   }
 
   /**
-   * Persist current organization data to Supabase.
-   * Kept under the old method name so existing UI flows continue to work.
+   * Save current data to LocalStorage
    */
-  async saveToLocalStorage(silent = false) {
+  saveToLocalStorage(silent = false) {
     try {
-      if (!this.cloudReady || !window.OrgFlowCloud) {
-        throw new Error('ยังไม่ได้ตั้งค่า Supabase Cloud');
-      }
-      await window.OrgFlowCloud.upsertEmployees(this.data);
-
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.data));
+      this.syncToCloud(silent);
       if (!silent && typeof Swal !== 'undefined') {
         Swal.fire({
           icon: 'success',
           title: 'บันทึกข้อมูลเรียบร้อย',
-          text: this.cloudReady ? 'บันทึกลงฐานข้อมูล Cloud แล้ว' : 'บันทึกลงเบราว์เซอร์ชั่วคราวแล้ว',
+          text: this.isCloudReady() ? 'บันทึกใน Browser และ Supabase แล้ว' : 'บันทึกใน Browser แล้ว (Demo/Local Mode)',
           timer: 1800,
           showConfirmButton: false,
           toast: true,
           position: 'top-end'
         });
       }
-      return true;
     } catch (e) {
-      console.error('Data save failed:', e);
+      console.error('LocalStorage save failed:', e);
       if (!silent && typeof Swal !== 'undefined') {
-        Swal.fire({
-          icon: 'error',
-          title: 'ไม่สามารถบันทึกได้',
-          text: e.message || 'ตรวจสอบการเชื่อมต่อฐานข้อมูลและสิทธิ์ RLS'
-        });
+        Swal.fire({ icon: 'error', title: 'ไม่สามารถบันทึกได้', text: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล' });
       }
+    }
+  }
+
+  isCloudReady() {
+    return Boolean(window.OrgFlowSupabaseService && window.OrgFlowSupabaseService.isConfigured() && window.OrgFlowSupabaseService.isAuthenticated());
+  }
+
+  async syncToCloud(silent = true) {
+    if (!this.isCloudReady()) return false;
+    try {
+      await window.OrgFlowSupabaseService.upsertEmployees(this.data);
+      this.updateCloudStatus();
+      return true;
+    } catch (err) {
+      console.error('Supabase sync failed:', err);
+      this.updateCloudStatus(err.message);
+      if (!silent && typeof Swal !== 'undefined') Swal.fire({ icon: 'error', title: 'บันทึก Supabase ไม่สำเร็จ', text: err.message });
       return false;
+    }
+  }
+
+  updateCloudStatus(errorText = '') {
+    const el = document.getElementById('orgflow-cloud-status');
+    if (!el) return;
+    const svc = window.OrgFlowSupabaseService;
+    if (!svc || !svc.isConfigured()) {
+      el.textContent = 'Demo / Local';
+      el.className = 'px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold';
+      return;
+    }
+    if (svc.isAuthenticated()) {
+      el.textContent = errorText ? 'Cloud Error' : 'Supabase Cloud';
+      el.className = 'px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold';
+    } else {
+      el.textContent = 'Supabase • Login';
+      el.className = 'px-2 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-semibold';
+    }
+  }
+
+  setupAuthUI() {
+    const host = document.querySelector('header .flex.items-center.gap-2:last-child');
+    if (!host || document.getElementById('orgflow-auth-btn')) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'flex items-center gap-1.5 ml-1';
+    wrap.innerHTML = '<span id="orgflow-cloud-status" class="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold">Demo / Local</span><button id="orgflow-auth-btn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"><i class="fa-solid fa-cloud"></i><span>Login</span></button>';
+    host.prepend(wrap);
+    const btn = document.getElementById('orgflow-auth-btn');
+    btn.addEventListener('click', () => this.openAuthDialog());
+    this.refreshAuthButton();
+  }
+
+  refreshAuthButton() {
+    const btn = document.getElementById('orgflow-auth-btn');
+    if (!btn) return;
+    const svc = window.OrgFlowSupabaseService;
+    if (svc && svc.isAuthenticated()) {
+      const email = svc.getUser()?.email || 'Account';
+      btn.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i><span>Logout</span>';
+      btn.title = email;
+    } else {
+      btn.innerHTML = '<i class="fa-solid fa-cloud"></i><span>Login</span>';
+    }
+  }
+
+  async openAuthDialog() {
+    const svc = window.OrgFlowSupabaseService;
+    if (!svc || !svc.isConfigured()) {
+      Swal.fire({ icon: 'info', title: 'ยังไม่ได้ตั้งค่า Supabase', html: 'แก้ไฟล์ <code>js/config.js</code> แล้วใส่ Supabase URL และ Publishable/Anon Key จากนั้น Deploy ใหม่' });
+      return;
+    }
+    if (svc.isAuthenticated()) {
+      const result = await Swal.fire({ icon: 'question', title: 'ออกจากระบบ?', text: svc.getUser()?.email || '', showCancelButton: true, confirmButtonText: 'Logout', cancelButtonText: 'ยกเลิก' });
+      if (result.isConfirmed) await svc.signOut();
+      return;
+    }
+    const result = await Swal.fire({
+      title: 'เข้าสู่ระบบ OrgFlow Cloud',
+      html: '<input id="org-login-email" class="swal2-input" type="email" placeholder="Email"><input id="org-login-password" class="swal2-input" type="password" placeholder="Password">',
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Login',
+      cancelButtonText: 'ยกเลิก',
+      preConfirm: () => ({ email: document.getElementById('org-login-email').value.trim(), password: document.getElementById('org-login-password').value })
+    });
+    if (!result.isConfirmed) return;
+    try {
+      Swal.fire({ title: 'กำลังเข้าสู่ระบบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      await svc.signIn(result.value.email, result.value.password);
+      Swal.close();
+      this.refreshAuthButton();
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Login ไม่สำเร็จ', text: err.message });
     }
   }
 
@@ -416,17 +400,6 @@ class OrgAppController {
       clearAllBtn.addEventListener('click', () => {
         if (moreDropdown) moreDropdown.classList.add('hidden');
         this.clearAllData();
-      });
-    }
-
-    const logoutBtn = document.getElementById('btn-logout');
-    if (logoutBtn) {
-      logoutBtn.addEventListener('click', async () => {
-        try {
-          await window.OrgFlowCloud.signOut();
-        } catch (e) {
-          Swal.fire({ icon: 'error', title: 'ออกจากระบบไม่สำเร็จ', text: e.message });
-        }
       });
     }
 
@@ -736,9 +709,11 @@ class OrgAppController {
         this.data = Array.from(existingMap.values());
       }
 
-      if (!this.cloudReady) throw new Error('ยังไม่ได้ตั้งค่า Supabase Cloud');
-      await window.OrgFlowCloud.replaceEmployees(this.data);
       this.closeModal('modal-upload-excel');
+      if (this.isCloudReady()) {
+        try { await window.OrgFlowSupabaseService.replaceEmployees(this.data); } catch (err) { console.error(err); }
+      }
+      this.saveToLocalStorage(true);
       this.updateStats();
       this.renderDeptFilters();
       this.populateManagerDropdown();
@@ -985,8 +960,7 @@ class OrgAppController {
     }
 
     this.closeModal('modal-employee-form');
-    const saved = await this.saveToLocalStorage(true);
-    if (!saved) return;
+    this.saveToLocalStorage(true);
     this.updateStats();
     this.renderDeptFilters();
     this.populateManagerDropdown();
@@ -1096,12 +1070,10 @@ class OrgAppController {
       // Remove item
       this.data = this.data.filter(d => d.id !== id);
 
-      if (!this.cloudReady) throw new Error('ยังไม่ได้ตั้งค่า Supabase Cloud');
-      // Persist subordinate reassignment first, then delete the manager.
-      if (subordinates.length) {
-        await window.OrgFlowCloud.upsertEmployees(subordinates);
+      if (this.isCloudReady()) {
+        try { await window.OrgFlowSupabaseService.deleteEmployee(id); } catch (err) { console.error(err); }
       }
-      await window.OrgFlowCloud.deleteEmployee(id);
+      this.saveToLocalStorage(true);
       this.updateStats();
       this.renderDeptFilters();
       this.populateManagerDropdown();
@@ -1141,8 +1113,7 @@ class OrgAppController {
         this.data = [];
       }
       this.activeDeptFilter = 'ALL';
-      if (!this.cloudReady) throw new Error('ยังไม่ได้ตั้งค่า Supabase Cloud');
-      await window.OrgFlowCloud.replaceEmployees(this.data);
+      this.saveToLocalStorage(true);
       this.updateStats();
       this.renderDeptFilters();
       this.populateManagerDropdown();
@@ -1176,8 +1147,10 @@ class OrgAppController {
     if (result.isConfirmed) {
       this.data = [];
       this.activeDeptFilter = 'ALL';
-      if (!this.cloudReady) throw new Error('ยังไม่ได้ตั้งค่า Supabase Cloud');
-      await window.OrgFlowCloud.clearEmployees();
+      if (this.isCloudReady()) {
+        try { await window.OrgFlowSupabaseService.replaceEmployees([]); } catch (err) { console.error(err); }
+      }
+      this.saveToLocalStorage(true);
       this.updateStats();
       this.renderDeptFilters();
       this.populateManagerDropdown();
@@ -1307,10 +1280,10 @@ class OrgAppController {
 }
 
 // Function to safely boot the application
-function startOrgApp() {
+async function startOrgApp() {
   if (!window.OrgApp) {
     window.OrgApp = new OrgAppController();
-    window.OrgApp.init();
+    await window.OrgApp.init();
   }
 }
 

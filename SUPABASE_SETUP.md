@@ -1,36 +1,30 @@
-# OrgFlow Pro — Supabase Setup Checklist
+# Supabase Setup — OrgFlow Pro V2
 
-## A. Supabase
+## A. Create project
+สร้าง Project ใน Supabase
 
-- [ ] Create Project
-- [ ] Run `supabase/schema.sql`
-- [ ] Confirm table `public.org_employees`
-- [ ] Confirm RLS = ON
-- [ ] Confirm policies exist for `authenticated`
-- [ ] Create first user under Authentication > Users
-- [ ] Copy Project URL
-- [ ] Copy Publishable Key / legacy anon key
+## B. Database
+Supabase → SQL Editor → New query → วาง `supabase/schema.sql` → Run
 
-## B. Local project
+## C. Auth
+Authentication → Users → Add user → สร้าง email/password สำหรับ HR/Admin
 
-Edit `js/config.js`.
+## D. Frontend config
+แก้ `js/config.js`:
 
-Do NOT paste the `service_role` key.
+```js
+window.ORG_FLOW_CONFIG = {
+  SUPABASE_URL: 'https://xxxxxxxx.supabase.co',
+  SUPABASE_PUBLISHABLE_KEY: 'xxxxxxxx',
+  AUTO_LOAD_CLOUD: true
+};
+```
 
-## C. GitHub
+ใช้ publishable/anon key เท่านั้น ห้ามใช้ service_role/secret key
 
-- [ ] Create GitHub repository
-- [ ] Push all files
-- [ ] Settings > Pages > Source = GitHub Actions
-- [ ] Push to `main`
-- [ ] Open the generated Pages URL
-
-## D. Supabase Auth redirect
-
-For Email/Password login, the app can run from the GitHub Pages URL without an OAuth provider.
-
-If you later add Google/Microsoft/LINE login, add the GitHub Pages URL to Supabase Auth Redirect URLs.
-
-## E. Production security
-
-For a real HR system, add an organization/tenant model before allowing users from multiple companies. The current SQL intentionally protects the table at the authenticated-user level; it does not yet isolate multiple companies from one another.
+## E. Test
+1. เปิด GitHub Pages
+2. กด Login
+3. Login ด้วย Supabase user
+4. เพิ่ม/แก้ไขพนักงาน
+5. เปิด Supabase → Table Editor → `org_employees` ตรวจสอบข้อมูล
