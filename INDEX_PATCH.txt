@@ -1,0 +1,5 @@
+Add this one line immediately AFTER:
+<script src="js/app.js"></script>
+
+ADD:
+<script src="js/permissions-import.js"></script>
