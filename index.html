@@ -228,17 +228,14 @@
   </div>
 
   <!-- Application footer -->
-  <footer id="orgflow-app-footer">©2026 Siamhrbp Organization</footer>
+  <footer id="orgflow-app-footer">©2026 siamhrbp Organization</footer>
 
-  <!-- Supabase + application scripts: LOAD EACH ONCE -->
+  <!-- Supabase + production authentication gate -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>
   <script src="js/supabase-service.js"></script>
   <script src="js/auth-gate.js"></script>
-  <script src="js/sample-data.js"></script>
-  <script src="js/excel-service.js"></script>
-  <script src="js/chart-renderer.js"></script>
-  <script src="js/app.js"></script>
-  <script src="js/permissions-import.js"></script>
+  <!-- IMPORTANT: app.js is NOT loaded until Login + MFA (AAL2) succeeds. -->
+  <script src="js/production-bootstrap.js"></script>
 </body>
 </html>
