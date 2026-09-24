@@ -7,7 +7,7 @@
  * - Leaving these values blank keeps the app in Demo/Local mode.
  */
 window.ORG_FLOW_CONFIG = Object.assign({
-  SUPABASE_URL: '',
-  SUPABASE_PUBLISHABLE_KEY: '',
+  SUPABASE_URL: 'https://chrzunvotwiqztawopjq.supabase.co',
+  SUPABASE_PUBLISHABLE_KEY: 'sb_secret_CfUxWg3vY24R6O0Z-s2BQQ_PXf2tIDq',
   AUTO_LOAD_CLOUD: true
 }, window.ORG_FLOW_CONFIG || {});
