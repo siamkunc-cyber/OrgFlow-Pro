@@ -8,6 +8,6 @@
  */
 window.ORG_FLOW_CONFIG = Object.assign({
   SUPABASE_URL: 'https://chrzunvotwiqztawopjq.supabase.co',
-  SUPABASE_PUBLISHABLE_KEY: 'sb_secret_CfUxWg3vY24R6O0Z-s2BQQ_PXf2tIDq',
+  SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_Z-7g3bK-X7vkBlEhKquekg_GIP3MCpO',
   AUTO_LOAD_CLOUD: true
 }, window.ORG_FLOW_CONFIG || {});
