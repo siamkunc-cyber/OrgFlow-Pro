@@ -1,31 +1,16 @@
 /**
- * Siamhrbp OrgFlow-Pro — STEP 8.8 REAL PRODUCTION BOOTSTRAP
- *
- * Single-owner boot strategy:
- * - auth-gate owns authentication.
- * - this file owns loading the application.
- * - app.js legacy DOMContentLoaded auto-start is allowed to create exactly one OrgApp.
- * - before that happens, we patch its data-loading methods so authenticated Production
- *   NEVER falls back to localStorage/demo data.
- * - Supabase returning [] is a valid Production state.
+ * Siamhrbp OrgFlow-Pro — STEP 8.9 REAL BOOT
+ * Single application owner. app.js is evaluated without its legacy auto-start block.
+ * Supabase is the only data source after authentication. Zero rows = zero rows.
  */
 (function () {
   'use strict';
+  let started = false;
 
-  let bootStarted = false;
-  let scriptsLoaded = false;
-  const scripts = [
-    'js/sample-data.js',
-    'js/excel-service.js',
-    'js/chart-renderer.js',
-    'js/app.js',
-    'js/permissions-import.js'
-  ];
-
-  function loadScript(src) {
+  function loadScript(src, version) {
     return new Promise((resolve, reject) => {
       const el = document.createElement('script');
-      el.src = src + '?v=8.8';
+      el.src = src + '?v=' + encodeURIComponent(version || '8.9');
       el.async = false;
       el.onload = resolve;
       el.onerror = () => reject(new Error('โหลด ' + src + ' ไม่สำเร็จ'));
@@ -33,108 +18,91 @@
     });
   }
 
-  function patchProductionDataPolicy() {
-    if (typeof OrgAppController === 'undefined') {
-      throw new Error('OrgAppController ไม่พร้อมหลังโหลด app.js');
-    }
+  async function loadAppController() {
+    const response = await fetch('js/app.js?v=8.9', { cache: 'no-store', credentials: 'same-origin' });
+    if (!response.ok) throw new Error('โหลด js/app.js ไม่สำเร็จ (' + response.status + ')');
+    let source = await response.text();
 
-    // Authenticated Production is always authoritative, including zero rows.
-    OrgAppController.prototype.loadInitialData = async function () {
-      const svc = window.OrgFlowSupabaseService;
-      if (!svc || !svc.isConfigured() || !svc.isAuthenticated()) {
-        this.data = [];
-        return;
-      }
+    // Remove the legacy auto-start block at the end of app.js.
+    const marker = '// Function to safely boot the application';
+    const idx = source.indexOf(marker);
+    if (idx >= 0) source = source.slice(0, idx);
 
-      const cloud = await svc.listEmployees();
-      this.data = Array.isArray(cloud) ? cloud : [];
-    };
-
-    // Never restore browser/demo data after logout or auth-state changes.
-    OrgAppController.prototype.loadLocalOrDemoData = function () {
-      this.data = [];
-    };
-
-    window.SIAMHRBP_PRODUCTION_BOOT_V88 = true;
-  }
-
-  function waitForOrgApp(timeoutMs = 10000) {
-    return new Promise((resolve, reject) => {
-      const startedAt = Date.now();
-      const tick = () => {
-        if (window.OrgApp) return resolve(window.OrgApp);
-        if (Date.now() - startedAt > timeoutMs) {
-          return reject(new Error('OrgApp ไม่เริ่มทำงานภายใน ' + timeoutMs + 'ms'));
-        }
-        setTimeout(tick, 25);
-      };
-      tick();
-    });
+    // Return the controller class from the evaluated source.
+    source += '\n;return OrgAppController;';
+    const Factory = new Function(source);
+    const Controller = Factory();
+    if (typeof Controller !== 'function') throw new Error('OrgAppController ไม่พร้อมใช้งาน');
+    return Controller;
   }
 
   async function boot() {
-    if (bootStarted) return;
-    bootStarted = true;
-
+    if (started) return;
+    started = true;
     try {
-      if (!scriptsLoaded) {
-        for (const src of scripts) await loadScript(src);
-        patchProductionDataPolicy();
-        scriptsLoaded = true;
-      }
-
-      // app.js registers its own DOMContentLoaded starter. We must NOT instantiate
-      // another OrgApp here. Wait for that one instance instead.
-      const app = await waitForOrgApp();
       const svc = window.OrgFlowSupabaseService;
-      if (!svc?.isAuthenticated()) {
-        throw new Error('ไม่พบ Supabase session หลัง Authentication');
-      }
+      if (!svc?.isAuthenticated()) throw new Error('ไม่พบ Supabase session หลัง Authentication');
 
-      // Final authoritative refresh. This is intentionally one render only.
+      // Dependencies first; app.js is intentionally NOT inserted as a normal script tag.
+      await loadScript('js/sample-data.js', '8.9');
+      await loadScript('js/excel-service.js', '8.9');
+      await loadScript('js/chart-renderer.js', '8.9');
+
+      const Controller = await loadAppController();
+      const app = new Controller();
+      window.OrgApp = app;
+
+      // The production shell owns authentication UI. Do not let the legacy app create
+      // a second Login/Logout control in the header.
+      app.setupAuthUI = function () {};
+      app.refreshAuthButton = function () {};
+
+      // Production data policy: Supabase is authoritative. Never fall back to local/demo.
+      app.loadInitialData = async function () {
+        const cloud = await svc.listEmployees();
+        this.data = Array.isArray(cloud) ? cloud : [];
+      };
+
+      await app.init();
+
+      // Load RBAC only after the real OrgApp instance exists.
+      await loadScript('js/permissions-import.js', '8.9');
+
+      // One final authoritative read after all UI patches are attached.
       const cloud = await svc.listEmployees();
       app.data = Array.isArray(cloud) ? cloud : [];
-      app.activeDeptFilter = 'ALL';
       app.updateStats?.();
       app.renderDeptFilters?.();
       app.populateManagerDropdown?.();
       app.renderCurrentView?.();
-      app.updateCloudStatus?.();
-      app.refreshAuthButton?.();
 
+      console.info('[STEP8.9] Production boot complete:', app.data.length, 'employees');
       window.dispatchEvent(new CustomEvent('siamhrbp-orgflow-booted', {
         detail: { employeeCount: app.data.length }
       }));
-
-      console.log('[STEP8.8] Production boot complete:', app.data.length, 'employees');
     } catch (e) {
-      console.error('[STEP8.8 bootstrap]', e);
-      bootStarted = false;
-      const old = document.getElementById('siamhrbp-bootstrap-error');
-      if (old) old.remove();
+      console.error('[STEP8.9 boot]', e);
+      started = false;
+      window.dispatchEvent(new CustomEvent('siamhrbp-orgflow-boot-failed', {
+        detail: { message: e?.message || String(e) }
+      }));
       const box = document.createElement('div');
-      box.id = 'siamhrbp-bootstrap-error';
-      box.style.cssText = 'position:fixed;left:20px;right:20px;bottom:40px;z-index:200000;padding:14px;background:#3b0d0d;color:#ffd0d0;border-radius:12px;font:12px/1.5 system-ui;box-shadow:0 10px 30px rgba(0,0,0,.25)';
+      box.id = 'siamhrbp-boot-error';
+      box.style.cssText = 'position:fixed;left:20px;right:20px;bottom:20px;z-index:200000;padding:14px;background:#3b0d0d;color:#ffd0d0;border-radius:12px;font:12px/1.5 system-ui;box-shadow:0 10px 30px rgba(0,0,0,.2)';
       box.textContent = 'Siamhrbp OrgFlow-Pro โหลดระบบไม่สำเร็จ: ' + (e?.message || e);
       document.body.appendChild(box);
     }
   }
 
-  window.addEventListener('siamhrbp-auth-ready', () => {
-    // Let the current parser/DOM event cycle settle before dynamically loading app.js.
-    setTimeout(boot, 0);
-  }, { once: false });
-
+  window.addEventListener('siamhrbp-auth-ready', () => setTimeout(boot, 0));
   window.addEventListener('siamhrbp-auth-logged-out', () => {
-    const app = window.OrgApp;
-    if (!app) return;
-    app.data = [];
-    app.activeDeptFilter = 'ALL';
-    app.updateStats?.();
-    app.renderDeptFilters?.();
-    app.populateManagerDropdown?.();
-    app.renderCurrentView?.();
-    app.updateCloudStatus?.();
-    app.refreshAuthButton?.();
+    started = false;
+    if (window.OrgApp) {
+      window.OrgApp.data = [];
+      window.OrgApp.updateStats?.();
+      window.OrgApp.renderDeptFilters?.();
+      window.OrgApp.populateManagerDropdown?.();
+      window.OrgApp.renderCurrentView?.();
+    }
   });
 })();

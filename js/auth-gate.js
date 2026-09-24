@@ -62,9 +62,13 @@
       .siam-left:after{content:"";position:absolute;width:55vw;height:55vw;right:-24vw;bottom:-28vw;border-radius:50%;border:1px solid rgba(255,255,255,.12);box-shadow:0 0 0 80px rgba(255,255,255,.025),0 0 0 160px rgba(255,255,255,.018)}
       .siam-hero{position:relative;z-index:2;max-width:650px}.siam-brand{display:flex;align-items:center;gap:14px;margin-bottom:28px}.siam-mark{width:48px;height:48px;border-radius:15px;display:grid;place-items:center;background:#fff;color:#071326;font-weight:900}.siam-name{font-size:22px;font-weight:800}.siam-sub{color:#c5d8ef;font-size:13px}.siam-title{font-size:clamp(34px,4.6vw,66px);line-height:1.08;margin:0 0 18px;font-weight:850;letter-spacing:-.045em}.siam-title span{color:#8dccff}.siam-copy{color:#c6d5e8;font-size:15px;line-height:1.8}.siam-cards{display:flex;gap:12px;margin-top:30px;flex-wrap:wrap}.siam-card{min-width:145px;padding:14px 16px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.08);border-radius:15px}.siam-card strong{display:block;font-size:13px}.siam-card small{color:#a9bdd6}.siam-footer{position:absolute;left:28px;right:28px;bottom:18px;color:#72849d;font-size:10px;text-align:center}
       .siam-right{flex:0 0 min(48%,760px);display:flex;align-items:center;justify-content:center;padding:28px;background:#070c18;border-left:1px solid rgba(255,255,255,.06)}.siam-shell{width:min(460px,100%)}.siam-tools{display:flex;justify-content:flex-end;gap:8px;margin-bottom:28px}.siam-icon{width:38px;height:38px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:#10192c;color:#dce8f8}.siam-h2{font-size:34px;font-weight:800;margin:0 0 8px}.siam-p{color:#9eb0c9;font-size:13px;line-height:1.7;margin-bottom:20px}.siam-field{margin-bottom:17px}.siam-label{display:block;color:#d8e5f5;font-size:12px;font-weight:700;margin-bottom:8px}.siam-wrap{position:relative}.siam-input{width:100%;box-sizing:border-box;height:52px;border-radius:13px;border:1px solid #26344d;background:#edf4ff;color:#101827;padding:0 46px;font-size:14px;outline:none}.siam-input:focus{border-color:#2f80ed;box-shadow:0 0 0 3px rgba(47,128,237,.2)}.siam-ico{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:#8a9bb3}.siam-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:36px;height:36px;border:0;background:transparent;color:#72839b;cursor:pointer}.siam-btn{width:100%;height:52px;border:0;border-radius:13px;margin-top:7px;background:linear-gradient(135deg,#fff,#e8f2ff);color:#091326;font-size:14px;font-weight:800;cursor:pointer}.siam-btn:disabled{opacity:.55}.siam-back{width:100%;margin-top:10px;height:44px;border-radius:12px;border:1px solid #26344d;background:transparent;color:#b8c8dc;cursor:pointer}.siam-msg{margin:0 0 16px;padding:11px 13px;border-radius:12px;font-size:12px;line-height:1.55}.siam-error{border:1px solid rgba(255,98,98,.25);background:rgba(150,35,35,.14);color:#ffb1b1}.siam-ok{border:1px solid rgba(71,210,151,.22);background:rgba(24,115,82,.13);color:#9af0c9}.siam-info{margin-top:18px;padding:13px 15px;border:1px solid rgba(84,153,255,.16);background:rgba(20,42,75,.28);border-radius:14px;color:#9fb6d3;font-size:11px;line-height:1.65}.siam-attempt{margin:0 0 16px;padding:10px 13px;border-radius:11px;border:1px solid rgba(255,193,7,.22);background:rgba(130,91,0,.14);color:#f3d38a;font-size:12px}.siam-attempt.danger{border-color:rgba(255,98,98,.3);background:rgba(150,35,35,.15);color:#ffb1b1}.siam-qr{display:block;width:210px;height:210px;margin:0 auto 18px;background:#fff;padding:10px;border-radius:14px}.siam-secret{font-family:ui-monospace,monospace;word-break:break-all;color:#b8d5f4;background:#0d1627;border:1px solid #25334b;padding:10px 12px;border-radius:10px;font-size:11px}.siam-code{letter-spacing:.35em;text-align:center;font-size:22px;font-weight:800;padding-left:22px}
-      #orgflow-session-status{position:fixed;right:18px;top:10px;z-index:90000;display:none;align-items:center;gap:8px;padding:7px 9px 7px 11px;background:rgba(255,255,255,.97);border:1px solid #bbf7d0;border-radius:12px;box-shadow:0 8px 24px rgba(15,23,42,.14);font:600 11px/1.2 system-ui,-apple-system,"Segoe UI",sans-serif;color:#14532d}
+      #orgflow-session-status{display:none;align-items:center;gap:7px;flex:0 0 auto;max-width:310px;padding:6px 7px 6px 9px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:11px;box-shadow:none;font:600 11px/1.2 system-ui,-apple-system,"Segoe UI",sans-serif;color:#14532d;position:relative;z-index:40}
       #orgflow-session-status .online-dot{width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 0 3px #d1fae5;flex:0 0 auto}.session-name{max-width:230px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.session-logout{border:0;border-left:1px solid #dcfce7;background:transparent;color:#b91c1c;font:700 11px system-ui;cursor:pointer;padding:4px 4px 4px 9px}.session-logout:hover{color:#7f1d1d}
-      @media(max-width:900px){#siamhrbp-auth-gate{overflow:auto}.siam-left{display:none}.siam-right{flex:1;min-height:100%;border-left:0}#orgflow-session-status{right:8px;top:8px}.session-name{max-width:150px}}
+      @media(max-width:1100px){#orgflow-session-status{max-width:220px}.session-name{max-width:140px}}@media(max-width:900px){#siamhrbp-auth-gate{overflow:auto}.siam-left{display:none}.siam-right{flex:1;min-height:100%;border-left:0}#orgflow-session-status{max-width:180px}.session-name{max-width:105px}}
+    `;
+    s.textContent += `
+      /* STEP8.9: session status belongs inside the header, never over the menu */
+      #orgflow-session-status + * { }
     `;
     document.head.appendChild(s);
   }
@@ -74,7 +78,8 @@
     if (el) return el;
     el = document.createElement('div'); el.id = 'orgflow-session-status';
     el.innerHTML = '<span class="online-dot"></span><span class="session-name" id="orgflow-session-text"></span><button type="button" class="session-logout" id="orgflow-session-logout">↪ ออกระบบ</button>';
-    document.body.appendChild(el);
+    const host = document.querySelector('header > div:first-child > div:last-child');
+    if (host) host.prepend(el); else document.body.appendChild(el);
     el.querySelector('#orgflow-session-logout').addEventListener('click', async () => { await logout(); lockScreen(true); renderLogin('ออกจากระบบเรียบร้อยแล้ว'); });
     return el;
   }
@@ -187,6 +192,9 @@
     busy = false; lockScreen(false); showSessionStatus(); document.title = APP_NAME + ' | Organization Management';
     window.dispatchEvent(new CustomEvent('siamhrbp-auth-ready', { detail: { profile, mfaRequired: !!requireMfa } }));
   }
+
+  window.addEventListener('siamhrbp-orgflow-booted', () => { lockScreen(false); });
+  window.addEventListener('siamhrbp-orgflow-boot-failed', (e) => { lockScreen(true); renderLoading('โหลดระบบไม่สำเร็จ', e?.detail?.message || 'กรุณารีเฟรชหน้าแล้วลองใหม่'); });
 
   async function init() {
     ensureStyles(); ensureGate(); ensureSessionStatus(); lockScreen(true); hideSessionStatus();
