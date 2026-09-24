@@ -287,5 +287,44 @@
     }
   }
 
+  // STEP 7 FINAL: persistent application footer.
+  // This file is already loaded by index.html, so no extra script tag is required.
+  function ensureBrandFooter() {
+    const render = () => {
+      if (document.getElementById('orgflow-brand-footer')) return;
+      const footer = document.createElement('footer');
+      footer.id = 'orgflow-brand-footer';
+      footer.setAttribute('aria-label', 'OrgFlow copyright');
+      footer.innerHTML = '&copy;2026 siamhrbp Organization';
+      Object.assign(footer.style, {
+        position: 'fixed',
+        left: '0',
+        right: '0',
+        bottom: '0',
+        height: '28px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '0 12px',
+        boxSizing: 'border-box',
+        background: 'rgba(255,255,255,0.96)',
+        borderTop: '1px solid #e2e8f0',
+        color: '#64748b',
+        fontSize: '11px',
+        fontWeight: '600',
+        letterSpacing: '0.02em',
+        lineHeight: '1',
+        zIndex: '9999',
+        pointerEvents: 'none',
+        userSelect: 'none',
+        backdropFilter: 'blur(6px)'
+      });
+      document.body.appendChild(footer);
+    };
+    if (document.body) render();
+    else document.addEventListener('DOMContentLoaded', render, { once: true });
+  }
+
   window.OrgFlowSupabaseService = new OrgFlowSupabaseService();
+  ensureBrandFooter();
 })();
